@@ -1,0 +1,85 @@
+# NitroStack Knowledge Engine
+
+A Next.js React workspace and a Node.js REST API for searching documentation, asking questions with citations, ingesting files and documentation URLs, inspecting evaluation runs, and tracking provider usage.
+
+```mermaid
+flowchart LR
+  Browser[React workspace] --> API[Node.js REST API]
+  API --> Core[Shared TypeScript core]
+  Jobs[Local crawl and evaluation jobs] --> Core
+  Core --> Atlas[(MongoDB Atlas)]
+  Core --> Voyage[Voyage embedding and reranking]
+  Core --> Router[OpenRouter]
+```
+
+## Run locally
+
+Use Node.js 24 and configure server variables from [.env.example](.env.example) in `.env.local`. The required variables are `MONGODB_URI`, `MONGODB_DB`, `VOYAGE_API_KEY`, `OPENROUTER_API_KEY`, and `LLM_MODEL`. The MongoDB database user must be able to manage search indexes for initial setup. `VOYAGE_API_BASE` defaults to the Atlas Model API. Set it to the legacy Voyage endpoint if you have a legacy Voyage key.
+
+```sh
+npm ci
+npm run setup
+npm run crawl -- https://docs.nitrostack.ai/docs/getting-started/overview
+npm run dev
+```
+
+Open [the workspace](http://localhost:3000) and use **Connect workspace** with the key in the ignored `.env.tenant-nitrostack` file created by setup. Only key hashes are stored in Atlas. The web UI keeps the entered workspace key for its browser tab session.
+
+Run `npm run crawl` to read the NitroStack sitemap. `CRAWL_LIMIT` limits the number of pages and `CRAWL_DELAY_MS` controls pacing. The crawler can be restarted. An identical document version is skipped. The current official documentation domain is [docs.nitrostack.ai](https://docs.nitrostack.ai/). Single page ingestion accepts that site's documentation URLs. Uploads accept Markdown, HTML, text, and PDFs with readable text, up to 3 MB. Uploads with the same filename in the same collection update the document.
+
+## API
+
+All endpoints use `Authorization: Bearer <workspace API key>`. The browser uses the same origin as the API.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/session` | Identify the workspace and list configured answer models |
+| GET | `/api/health` | Check Atlas, the search indexes, Voyage, and OpenRouter |
+| POST | `/api/search` | Retrieve passages using vector or hybrid search |
+| POST | `/api/answer` | Generate and validate a cited answer |
+| GET | `/api/collections` | List authorized collections and their counts |
+| GET | `/api/documents` | List authorized documents |
+| POST | `/api/ingest` | Add or update a page or uploaded document as an admin |
+| GET | `/api/documents/{id}/status` | Check whether the active version is indexed |
+| DELETE | `/api/documents/{id}` | Delete a document as an admin |
+| GET | `/api/sources/{id}` | Read an authorized source by document or chunk ID |
+| GET | `/api/eval/runs` | Read stored evaluation runs |
+| GET | `/api/usage` | Read token and cost totals by provider and model |
+
+Search accepts `query`, `collection`, `topK`, `mode`, `rerank`, `rerankModel`, `candidates`, and `exact`. Optional `filters` accepts `sourceType` and `version`. Answers also accept a configured `model`. Hybrid uses reciprocal rank fusion over Atlas text and vector search. Both indexes filter by tenant and role. Results are checked against the current document version before they are returned. Index freshness is asynchronous and visible as `pending` until Atlas confirms both indexes can see the active version.
+
+## Verify and evaluate
+
+```sh
+npm test
+npm run check
+npm run build
+npm run evaluate -- path/to/labeled-questions.json
+```
+
+A labeled evaluation file is a JSON array. Each row has a `query` and an `expectedUrls` array of relevant pages already indexed for that workspace. The harness measures document-level Recall@10 and nDCG@10 over the top ten passages, p50/p95 retrieval latency, and cost per query. It saves measured runs to Atlas for the Evaluation page. Set `EVAL_CONFIG` to run one configuration and `EVAL_DELAY_MS` to change the delay between queries.
+
+Metered OpenRouter costs come from its usage response. Voyage cost estimates use its reported token usage and published list prices. Bills can differ due to included usage or geographic pricing. [Voyage pricing](https://docs.voyageai.com/docs/pricing)
+
+## Deploy to Vercel
+
+The standalone API is available at [nitrostack-knowledge-backend.vercel.app](https://nitrostack-knowledge-backend.vercel.app).
+
+The frontend is available at [nitrostack-knowledge-engine.vercel.app](https://nitrostack-knowledge-engine.vercel.app).
+
+1. From this repo root, run `npx vercel login` and `npx vercel link`.
+2. Add the required server variables to the project environment in Vercel. Keep service keys and database credentials in Secret environment variables.
+3. Run `npx vercel deploy` to create a preview or `npx vercel deploy --prod` to publish to the production domain.
+4. Open the returned URL and check `/api/health` with a workspace key. Confirm that the selected Atlas cluster permits connections from the deployment's network.
+
+The root project uses the Next.js preset. The standalone Node.js backend deploys from `backend/` as a separate Vercel project. Both entry points share the HTTP handler and core in `backend/core/`. Run bulk crawling and evaluation outside Vercel request handlers. [Vercel CLI deployment](https://vercel.com/docs/projects/deploy-from-cli)
+
+To redeploy the standalone API, configure the server variables on its Vercel project and run the following from the repo root.
+
+```sh
+npx vercel deploy backend --prod --project nitrostack-knowledge-backend
+```
+
+Set `BACKEND_URL` in the frontend's `.env.local` to the backend origin. Next.js forwards local `/api/*` requests to that origin when the variable is set.
+
+The web and REST surfaces use externally generated Voyage embeddings. The separate NitroCloud MCP deployment, automated Atlas embeddings, and full PRD benchmark are outside this implementation.

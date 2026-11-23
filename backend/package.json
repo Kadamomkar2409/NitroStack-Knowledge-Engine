@@ -1,0 +1,14 @@
+{
+  "name": "nitrostack-knowledge-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "cheerio": "1.2.0",
+    "mongodb": "7.9.1",
+    "pdf-parse": "2.4.5"
+  }
+}

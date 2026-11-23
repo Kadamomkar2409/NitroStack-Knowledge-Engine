@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "functions": {
+    "api/*.ts": {
+      "maxDuration": 120,
+      "includeFiles": "core/**/*.ts"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/:route*",
+      "destination": "/api/dispatch?__route=:route*"
+    }
+  ]
+}
