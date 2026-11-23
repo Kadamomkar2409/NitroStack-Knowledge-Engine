@@ -62,7 +62,9 @@ Run `npm run test:mcp:live` with the same local configuration and a free port. I
 
 Open the repository in NitroStudio and select **Nitro HTTP (Production)**. Studio runs `npm run build` and then `npm run start:prod`. To reproduce the launch locally, run those same commands in that order. `npm run build:mcp` compiles just the MCP server when you only need to rebuild that service.
 
-The production endpoint is `http://127.0.0.1:3000/mcp` by default. To use a different port, pass `npm run start:prod -- --port 3100` or set `MCP_SERVER_PORT`, `PORT`, or `MCP_PORT` in that order of precedence. If the Next.js app is already running on port 3000, select a free MCP port and use the same port in Studio. Configure the project's authentication in NitroStudio to send `Authorization: Bearer <workspace API key>` on every request. [NitroStudio authentication](https://docs.nitrostack.ai/docs/studio/authentication)
+The production endpoint is `http://127.0.0.1:3000/mcp` by default. To use a different port, pass `npm run start:prod -- --port 3100` or set `MCP_SERVER_PORT`, `PORT`, or `MCP_PORT` in that order of precedence. If the Next.js app is already running on port 3000, select a free MCP port and use the same port in Studio. In NitroStudio's **Authentication** page, select the Task fourth project entry you are connecting and enter the existing workspace key in **Static API Key**. Streamable HTTP accepts `X-API-Key: <workspace API key>` and `Authorization: Bearer <workspace API key>` on every MCP request. If both headers are present, they must contain the same key. [NitroStudio authentication](https://docs.nitrostack.ai/docs/studio/authentication)
+
+With the production MCP server running on its default port, run `npm run test:mcp:auth` to verify both header formats, rejected credentials, initialization, tool discovery, and a read-only `list_collections` call against Atlas.
 
 ## Verify and evaluate
 

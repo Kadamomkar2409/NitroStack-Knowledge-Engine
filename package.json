@@ -13,6 +13,7 @@
     "start": "next start",
     "start:prod": "node dist/mcp/index.js --production",
     "mcp": "tsx mcp/index.ts",
+    "test:mcp:auth": "tsx tests/mcp-auth.live.ts",
     "test:mcp:live": "tsx tests/mcp.live.ts",
     "check": "tsc --noEmit",
     "setup": "node --env-file-if-exists=.env.local scripts/setup.ts",

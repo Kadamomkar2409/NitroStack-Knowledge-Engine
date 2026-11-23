@@ -21,9 +21,16 @@ class KnowledgeHttpAuthentication {
     });
     app.all('/mcp', async (request, response, next) => {
       try {
-        const authorization = request.get('authorization') ?? null;
-        const identity = await authenticate(authorization);
-        const keyHash = digest(authorization!.substring(7));
+        const { authorization = [], 'x-api-key': apiKeys = [] } = request.headersDistinct;
+        const [bearer] = authorization;
+        const [apiKey] = apiKeys;
+        if (authorization.length > 1 || apiKeys.length > 1 ||
+            (bearer !== undefined && apiKey !== undefined && bearer.slice(7) !== apiKey)) {
+          throw new AppError(401, 'unauthorized', 'Enter a valid workspace API key.');
+        }
+        const credential = bearer ?? (apiKey === undefined ? null : `Bearer ${apiKey}`);
+        const identity = await authenticate(credential);
+        const keyHash = digest(credential!.slice(7));
         const sessionId = request.get('mcp-session-id');
         if (sessionId) {
           const session = sessions.get(sessionId);
