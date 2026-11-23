@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { McpApp, McpApplicationFactory, Module } from '@nitrostack/core';
 import type { NitroStackServer } from '@nitrostack/core';
+import onHeaders from 'on-headers';
 import { AppError, authenticate, closeDatabase, digest } from '../backend/core/db.ts';
 import { KnowledgeTools, publicError, requestIdentity } from './tools.ts';
 
@@ -35,8 +36,8 @@ class KnowledgeHttpAuthentication {
           });
         } else {
           for (const [id, session] of sessions) if (session.expires <= Date.now()) sessions.delete(id);
-          // Bind the ID the transport issued before a subsequent request can use it.
-          response.once('finish', () => {
+          // An MCP client can read the ID and send its next request before the response finishes.
+          onHeaders(response, () => {
             const issuedId = response.getHeader('mcp-session-id');
             if (typeof issuedId === 'string' && response.statusCode < 300) {
               sessions.set(issuedId, { keyHash, expires: Date.now() + sessionLifetime });

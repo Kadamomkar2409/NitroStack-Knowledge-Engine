@@ -1,40 +1,51 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { closeDatabase, corpusOrigin, database, digest, env } from '../backend/core/db.ts';
+import { authenticate, closeDatabase, corpusOrigin, database, digest, env, requireAdmin } from '../backend/core/db.ts';
+import type { Identity } from '../backend/core/db.ts';
 import { refreshStatus } from '../backend/core/ingest.ts';
+import { loadMcpConfiguration, redactConfiguration } from '../mcp/config.ts';
 
 async function verify() {
+  loadMcpConfiguration();
   for (const name of ['MONGODB_URI', 'MONGODB_DB', 'VOYAGE_API_KEY', 'OPENROUTER_API_KEY', 'LLM_MODEL']) env(name);
+  const ownerKey = env('NITROSTACK_TENANT_API_KEY');
+  const a = await authenticate(`Bearer ${ownerKey}`);
+  requireAdmin(a);
   const { startKnowledgeServer } = await import('../mcp/server.ts');
   const db = database();
   const run = randomBytes(8).toString('hex');
-  const a = { tenantId: `mcp-test-${run}-a`, roles: ['admin'], key: randomBytes(32).toString('base64url') };
   const b = { tenantId: `mcp-test-${run}-b`, roles: ['admin'], key: randomBytes(32).toString('base64url') };
   const reader = { tenantId: a.tenantId, roles: ['reader'], key: randomBytes(32).toString('base64url') };
-  const tenants = [a, b, reader].map(({ tenantId, roles, key }) => ({ tenantId, roles, apiKeyHash: digest(key), createdAt: new Date() }));
-  const tenantFilter = { tenantId: { $in: [a.tenantId, b.tenantId] } };
-  const collection = 'verification';
+  const tenants = [b, reader].map(({ tenantId, roles, key }) => ({ tenantId, roles, apiKeyHash: digest(key), createdAt: new Date() }));
+  const collection = `mcp-verification-${run}`;
+  const documentFilter = { collectionId: collection, tenantId: { $in: [a.tenantId, b.tenantId] } };
   const port = Number(process.env.MCP_PORT ?? 3001);
   const url = new URL(`http://127.0.0.1:${port}/mcp`);
   const clients: Client[] = [];
   const fetchDirect = globalThis.fetch;
   const voyageOrigin = new URL(process.env.VOYAGE_API_BASE || 'https://ai.mongodb.com/v1').origin;
-  let nextVoyage = 0;
+  let lastVoyage: number | undefined;
+  let voyageGate = Promise.resolve();
   let server: Awaited<ReturnType<typeof startKnowledgeServer>> | undefined;
 
   // Rate-limit real HTTP calls, including retries and multi-batch ingestion.
   globalThis.fetch = async (input, init) => {
     const target = new URL(input instanceof Request ? input.url : String(input));
     if (target.origin !== voyageOrigin) return fetchDirect(input, init);
-    const slot = Math.max(nextVoyage, Date.now());
-    nextVoyage = slot + 22_000;
-    if (slot > Date.now()) await delay(slot - Date.now());
-    const response = await fetchDirect(input, { ...init, signal: AbortSignal.timeout(18_000) });
-    console.log(`Voyage ${target.pathname} HTTP ${response.status}`);
+    let gap: number | undefined;
+    const dispatch = voyageGate.then(() => {
+      const now = performance.now();
+      gap = lastVoyage === undefined ? undefined : Math.floor(now - lastVoyage);
+      lastVoyage = now;
+      return fetchDirect(input, { ...init, signal: AbortSignal.timeout(18_000) });
+    });
+    // A fixed cooldown after the real call settles guarantees at least 22 seconds between dispatches.
+    voyageGate = dispatch.then(() => delay(22_000), () => delay(22_000));
+    const response = await dispatch;
+    console.log(`Voyage ${target.pathname} HTTP ${response.status}${gap === undefined ? '' : `, ${gap} ms since previous request`}`);
     return response;
   };
 
@@ -58,7 +69,7 @@ async function verify() {
     return data;
   }
 
-  async function indexed(identity: typeof a, id: string) {
+  async function indexed(identity: Identity, id: string) {
     for (let attempt = 0; attempt < 30; attempt++) {
       if ((await refreshStatus(identity, id)).status === 'indexed') return;
       await delay(2000);
@@ -69,7 +80,7 @@ async function verify() {
   try {
     await db.collection('tenants').insertMany(tenants);
     server = await startKnowledgeServer(port);
-    const { client: owner, transport } = await connect(a.key);
+    const { client: owner, transport } = await connect(ownerKey);
     const { client: other } = await connect(b.key);
     const { client: readonly } = await connect(reader.key);
     const toolNames = (await owner.listTools()).tools.map(tool => tool.name).sort();
@@ -94,31 +105,44 @@ async function verify() {
 
     const sourceUrl = `${corpusOrigin}/docs/getting-started/overview`;
     const publicDoc = await call(owner, 'ingest_document', { collection, url: sourceUrl });
-    const privateDoc = await call(other, 'ingest_document', { collection,
-      file: { name: 'README.md', base64: (await readFile(new URL('../README.md', import.meta.url))).toString('base64') } });
     assert.equal(publicDoc.changed, true);
-    assert.equal(privateDoc.changed, true);
-    console.log('ingest_document:', JSON.stringify({ primary: publicDoc, secondTenant: privateDoc }));
+    console.log('ingest_document primary:', JSON.stringify({ url: sourceUrl, ...publicDoc }));
+    const foreignIds: string[] = [];
+    for (const path of ['how-nitrostack-works', 'core-concepts/bootstrap', 'core-concepts/dependency-injection']) {
+      const foreignUrl = `${corpusOrigin}/docs/getting-started/${path}`;
+      const document = await call(other, 'ingest_document', { collection, url: foreignUrl });
+      assert.equal(document.changed, true);
+      assert.equal(typeof document.documentId, 'string');
+      const id = String(document.documentId);
+      foreignIds.push(id);
+      console.log('ingest_document second tenant:', JSON.stringify({ url: foreignUrl, ...document }));
+      await indexed(b, id);
+      const permitted = await call(other, 'get_source', { documentId: id });
+      assert.equal(permitted.documentId, id);
+      console.log('Second tenant can read:', JSON.stringify({ documentId: id, source: permitted.source, chunkCount: permitted.chunkCount }));
+      console.log(`Primary tenant requesting ${id}:`);
+      await call(owner, 'get_source', { documentId: id }, 'source_not_found');
+    }
     await indexed(a, String(publicDoc.documentId));
-    await indexed(b, String(privateDoc.documentId));
 
     const listed = await call(owner, 'list_collections', {});
-    assert.equal((listed.collections as { documents: number }[])[0]?.documents, 1);
-    console.log('list_collections:', JSON.stringify(listed));
+    const listedCollection = (listed.collections as { name: string; documents: number }[]).find(row => row.name === collection);
+    assert.equal(listedCollection?.documents, 1);
+    console.log('list_collections verification collection:', JSON.stringify(listedCollection));
     await call(owner, 'search_knowledge', { query: 'test', filters: { tenantId: b.tenantId } }, 'invalid_input');
     await call(readonly, 'delete_document', { documentId: publicDoc.documentId }, 'forbidden');
-    await call(owner, 'get_source', { documentId: privateDoc.documentId }, 'source_not_found');
-    await call(owner, 'delete_document', { documentId: privateDoc.documentId }, 'document_not_found');
+    await call(owner, 'delete_document', { documentId: foreignIds[0] }, 'document_not_found');
 
-    // Target a term specific to the other tenant's real README, then confirm it is visible to its owner only.
-    const query = { query: 'CRAWL_DELAY_MS', collection, mode: 'hybrid', rerank: false, topK: 3 };
+    const query = { query: 'createServer', collection, mode: 'hybrid', rerank: false, topK: 5 };
     const ownerSearch = await call(owner, 'search_knowledge', query);
     const otherSearch = await call(other, 'search_knowledge', query);
     const safeRows = ownerSearch.results as { documentId: string; score: number; source: unknown }[];
     assert.ok(safeRows.length > 0 && safeRows.every(row => row.documentId === publicDoc.documentId));
-    assert.ok((otherSearch.results as { documentId: string; text: string }[])
-      .some(row => row.documentId === privateDoc.documentId && row.text.includes('CRAWL_DELAY_MS')));
-    console.log('search_knowledge:', JSON.stringify(safeRows.map(({ documentId, score, source }) => ({ documentId, score, source }))));
+    const positive = (otherSearch.results as { documentId: string; text: string; source: unknown }[])
+      .find(row => foreignIds.includes(row.documentId) && row.text.includes('createServer'));
+    assert.ok(positive, 'Second tenant must find the target term in its own corpus.');
+    console.log('search_knowledge primary:', JSON.stringify(safeRows.map(({ documentId, score, source }) => ({ documentId, score, source }))));
+    console.log('search_knowledge second tenant exact match:', JSON.stringify({ documentId: positive.documentId, source: positive.source }));
 
     const grounded = await call(owner, 'answer_question', {
       query: 'What is NitroStack and what does it help developers build?', collection, rerank: false,
@@ -144,7 +168,13 @@ async function verify() {
     globalThis.fetch = fetchDirect;
     await Promise.allSettled(clients.map(client => client.close()));
     try {
-      await Promise.all(['chunks', 'documents', 'usage', 'tenants'].map(name => db.collection(name).deleteMany(tenantFilter)));
+      await Promise.all([
+        db.collection('chunks').deleteMany(documentFilter),
+        db.collection('documents').deleteMany(documentFilter),
+        db.collection('usage').deleteMany({ tenantId: b.tenantId }),
+        db.collection('tenants').deleteMany({ apiKeyHash: { $in: tenants.map(tenant => tenant.apiKeyHash) } }),
+      ]);
+      console.log('Cleaned up verification documents and temporary credentials.');
     } finally {
       await server?.stop();
       await closeDatabase();
@@ -156,8 +186,10 @@ try {
   await verify();
 } catch (failure) {
   const error = failure instanceof Error ? failure : Error('Unknown verification failure.');
-  console.error(`${error.name}: ${error.message.replace(/mongodb(?:\+srv)?:\/\/[^\s'"]+/gi, '[REDACTED MONGODB URI]')}`);
+  console.error(`${error.name}: ${redactConfiguration(error.message)}`);
   process.exitCode = 1;
+} finally {
+  await closeDatabase();
 }
 
 // NitroStack's rate-limit package keeps a process-wide timer alive after shutdown.

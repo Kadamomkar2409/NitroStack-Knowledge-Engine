@@ -52,11 +52,11 @@ Search accepts `query`, `collection`, `topK`, `mode`, `rerank`, `rerankModel`, `
 
 ## Run the MCP server locally
 
-Provide `MONGODB_URI`, `MONGODB_DB`, `VOYAGE_API_KEY`, `OPENROUTER_API_KEY`, and `LLM_MODEL` in the process environment, then run `npm run mcp`. Connect a Streamable HTTP MCP client to `http://127.0.0.1:3001/mcp`. Set `MCP_PORT` to use a different port. Send `Authorization: Bearer <workspace API key>` on every request, including initialization. The same workspace credentials and permissions apply to REST and MCP.
+Run `npm run mcp`. The server quietly loads `.env.local` for provider settings and reads the setup-generated NitroStack tenant key into `NITROSTACK_TENANT_API_KEY` when it is available. Existing process variables take precedence. Connect a Streamable HTTP MCP client to `http://127.0.0.1:3001/mcp`. Set `MCP_PORT` to use a different port. Send `Authorization: Bearer <workspace API key>` on every request, including initialization. The same workspace credentials and permissions apply to REST and MCP.
 
 The server exposes `search_knowledge`, `answer_question`, `get_source`, `list_collections`, `ingest_document`, `delete_document`, and `get_usage`. `get_source` takes a `documentId` or `chunkId`. `get_usage` accepts `period` in days (7, 30, or 90). Admins can ingest a NitroStack docs `url` or an inline `file` with `name` and `base64` fields. NitroStack's HTTP JSON body limit applies to inline uploads. The REST upload route supports larger files up to 3 MB.
 
-Run `npm run test:mcp:live` with the same provider configuration and a free local port. It creates two temporary Atlas tenants, verifies all seven tools with a real MCP client, checks tenant and role isolation, and removes the test records. It paces Voyage requests at least 22 seconds apart.
+Run `npm run test:mcp:live` with the same local configuration and a free port. It verifies all seven tools as the configured NitroStack admin and uses a temporary second tenant with real docs pages to check isolation. It removes verification documents and temporary credentials at the end. Usage from the primary tenant's provider calls remains visible in its normal usage totals. Voyage requests are spaced at least 22 seconds apart.
 
 ## Verify and evaluate
 
