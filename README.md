@@ -6,6 +6,8 @@ A Next.js React workspace and a Node.js REST API for searching documentation, as
 flowchart LR
   Browser[React workspace] --> API[Node.js REST API]
   API --> Core[Shared TypeScript core]
+  Client[MCP client] --> MCP[NitroStack MCP server]
+  MCP --> Core
   Jobs[Local crawl and evaluation jobs] --> Core
   Core --> Atlas[(MongoDB Atlas)]
   Core --> Voyage[Voyage embedding and reranking]
@@ -48,6 +50,14 @@ All endpoints use `Authorization: Bearer <workspace API key>`. The browser uses 
 
 Search accepts `query`, `collection`, `topK`, `mode`, `rerank`, `rerankModel`, `candidates`, and `exact`. Optional `filters` accepts `sourceType` and `version`. Answers also accept a configured `model`. Hybrid uses reciprocal rank fusion over Atlas text and vector search. Both indexes filter by tenant and role. Results are checked against the current document version before they are returned. Index freshness is asynchronous and visible as `pending` until Atlas confirms both indexes can see the active version.
 
+## Run the MCP server locally
+
+Provide `MONGODB_URI`, `MONGODB_DB`, `VOYAGE_API_KEY`, `OPENROUTER_API_KEY`, and `LLM_MODEL` in the process environment, then run `npm run mcp`. Connect a Streamable HTTP MCP client to `http://127.0.0.1:3001/mcp`. Set `MCP_PORT` to use a different port. Send `Authorization: Bearer <workspace API key>` on every request, including initialization. The same workspace credentials and permissions apply to REST and MCP.
+
+The server exposes `search_knowledge`, `answer_question`, `get_source`, `list_collections`, `ingest_document`, `delete_document`, and `get_usage`. `get_source` takes a `documentId` or `chunkId`. `get_usage` accepts `period` in days (7, 30, or 90). Admins can ingest a NitroStack docs `url` or an inline `file` with `name` and `base64` fields. NitroStack's HTTP JSON body limit applies to inline uploads. The REST upload route supports larger files up to 3 MB.
+
+Run `npm run test:mcp:live` with the same provider configuration and a free local port. It creates two temporary Atlas tenants, verifies all seven tools with a real MCP client, checks tenant and role isolation, and removes the test records. It paces Voyage requests at least 22 seconds apart.
+
 ## Verify and evaluate
 
 ```sh
@@ -82,4 +92,4 @@ npx vercel deploy backend --prod --project nitrostack-knowledge-backend
 
 Set `BACKEND_URL` in the frontend's `.env.local` to the backend origin. Next.js forwards local `/api/*` requests to that origin when the variable is set.
 
-The web and REST surfaces use externally generated Voyage embeddings. The separate NitroCloud MCP deployment, automated Atlas embeddings, and full PRD benchmark are outside this implementation.
+The shared core uses externally generated Voyage embeddings. NitroCloud deployment, automated Atlas embeddings, and the full PRD benchmark are outside this implementation.
