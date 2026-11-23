@@ -1,13 +1,18 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { findPackageJSON } from 'node:module';
+import { dirname, join } from 'node:path';
 import { config, parse, populate } from 'dotenv';
 
 const tenantKeyName = 'NITROSTACK_TENANT_API_KEY';
 
 export function loadMcpConfiguration() {
-  config({ path: fileURLToPath(new URL('../.env.local', import.meta.url)), quiet: true });
+  // Both the source and compiled entry points use configuration at the package root.
+  const manifest = findPackageJSON(import.meta.url);
+  if (!manifest) throw new Error('Could not locate the Knowledge MCP package root.');
+  const root = dirname(manifest);
+  config({ path: join(root, '.env.local'), quiet: true });
   try {
-    const source = readFileSync(new URL('../.env.tenant-nitrostack', import.meta.url), 'utf8').trim();
+    const source = readFileSync(join(root, '.env.tenant-nitrostack'), 'utf8').trim();
     // Setup writes a single raw key. Support a dotenv assignment as well.
     const value = /^[A-Za-z0-9_-]{32,128}$/.test(source) ? source : parse(source)[tenantKeyName];
     if (value) populate(process.env, { [tenantKeyName]: value });

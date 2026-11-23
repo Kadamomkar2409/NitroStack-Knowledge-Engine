@@ -67,7 +67,7 @@ class KnowledgeHttpAuthentication {
 class KnowledgeModule {}
 
 export async function startKnowledgeServer(port = Number(process.env.MCP_PORT ?? 3001)) {
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('MCP_PORT must be a valid TCP port.');
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('The MCP port must be an integer from 1 to 65535.');
   server = await McpApplicationFactory.create(KnowledgeModule);
   await server.start({ transport: 'http', host: '127.0.0.1', port, enableCors: false });
   return server;

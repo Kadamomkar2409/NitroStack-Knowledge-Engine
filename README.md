@@ -58,6 +58,12 @@ The server exposes `search_knowledge`, `answer_question`, `get_source`, `list_co
 
 Run `npm run test:mcp:live` with the same local configuration and a free port. It verifies all seven tools as the configured NitroStack admin and uses a temporary second tenant with real docs pages to check isolation. It removes verification documents and temporary credentials at the end. Usage from the primary tenant's provider calls remains visible in its normal usage totals. Voyage requests are spaced at least 22 seconds apart.
 
+### NitroStudio production mode
+
+Open the repository in NitroStudio and select **Nitro HTTP (Production)**. Studio runs `npm run build` and then `npm run start:prod`. To reproduce the launch locally, run those same commands in that order. `npm run build:mcp` compiles just the MCP server when you only need to rebuild that service.
+
+The production endpoint is `http://127.0.0.1:3000/mcp` by default. To use a different port, pass `npm run start:prod -- --port 3100` or set `MCP_SERVER_PORT`, `PORT`, or `MCP_PORT` in that order of precedence. If the Next.js app is already running on port 3000, select a free MCP port and use the same port in Studio. Configure the project's authentication in NitroStudio to send `Authorization: Bearer <workspace API key>` on every request. [NitroStudio authentication](https://docs.nitrostack.ai/docs/studio/authentication)
+
 ## Verify and evaluate
 
 ```sh

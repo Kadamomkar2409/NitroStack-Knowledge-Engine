@@ -8,8 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run build:mcp && next build",
+    "build:mcp": "tsc --project tsconfig.mcp.json",
     "start": "next start",
+    "start:prod": "node dist/mcp/index.js --production",
     "mcp": "tsx mcp/index.ts",
     "test:mcp:live": "tsx tests/mcp.live.ts",
     "check": "tsc --noEmit",
