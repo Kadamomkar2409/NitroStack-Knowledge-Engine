@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { parseArgs } from 'node:util';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { McpApp, McpApplicationFactory, Module } from '@nitrostack/core';
@@ -21,7 +22,8 @@ async function run() {
   if (major !== 24 || !Number.isInteger(patch) || minor < 22 || (minor === 22 && patch < 3)) {
     throw new AppError(503, 'unsupported_runtime', 'Use Node.js 24.22.3 or a later Node.js 24 patch release.');
   }
-  const keyHash = await readWorkspaceCredentialHash();
+  const { values } = parseArgs({ options: { 'credential-target': { type: 'string' } } });
+  const keyHash = await readWorkspaceCredentialHash(values['credential-target']);
   loadMcpConfiguration({ loadTenantKey: false });
   const verifyWorkspace = () => authenticateKeyHash(keyHash, AbortSignal.timeout(10_000));
   const { tenantId } = await verifyWorkspace();

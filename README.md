@@ -60,7 +60,7 @@ The HTTP entry points load `.env.local` for provider settings and read the setup
 
 The server exposes `search_knowledge`, `answer_question`, `get_source`, `list_collections`, `ingest_document`, `delete_document`, and `get_usage`. `get_source` takes a `documentId` or `chunkId`. `get_usage` accepts `period` in days (7, 30, or 90). Admins can ingest a NitroStack docs `url` or an inline `file` with `name` and `base64` fields. NitroStack's HTTP JSON body limit applies to inline uploads. The REST upload route supports larger files up to 3 MB.
 
-Run `npm run test:mcp:live` with the same local configuration and a free port. It verifies all seven tools as the configured NitroStack admin and uses a temporary second tenant with real docs pages to check isolation. It removes verification documents and temporary credentials at the end. Usage from the primary tenant's provider calls remains visible in its normal usage totals. Voyage requests are spaced at least 22 seconds apart.
+On Windows, run `npm run build:mcp` and then `npm run test:mcp:live` with the patched Node runtime, the provisioned default vault credential, and a free local port (`MCP_SECURITY_PORT`, default 3104). The suite creates two run-specific Atlas workspaces, two admins, and one reader. It uses session-scoped Windows vault entries and real docs pages to check HTTP MCP, STDIO MCP, and REST isolation. Voyage calls are spaced at least 22 seconds apart. A passing run removes only its own Atlas and vault records. On a failed run, the output identifies the Atlas test namespace for inspection; the suite removes its own temporary vault entries on exit.
 
 ### NitroStudio production mode
 

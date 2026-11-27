@@ -29,7 +29,7 @@ public static class WorkspaceCredential {
 
   public static int WriteHash() {
     IntPtr pointer;
-    if (!CredReadW("KnowledgeEngine-MCP-STDIO", 1, 0, out pointer)) {
+    if (!CredReadW(Environment.GetEnvironmentVariable("KE_VAULT_TARGET"), 1, 0, out pointer)) {
       const int ErrorNotFound = 1168;
       return Marshal.GetLastWin32Error() == ErrorNotFound ? 2 : 1;
     }
@@ -64,7 +64,10 @@ public static class WorkspaceCredential {
 } catch { exit 1 }
 `;
 
-export async function readWorkspaceCredentialHash() {
+export async function readWorkspaceCredentialHash(target = 'KnowledgeEngine-MCP-STDIO') {
+  if (target !== 'KnowledgeEngine-MCP-STDIO' && !/^KnowledgeEngine-MCP-STDIO-Test-[a-f0-9]{24}-(a|b|reader|invalid|missing)$/.test(target)) {
+    throw new AppError(400, 'windows_credential', 'Unrecognized Windows Credential Manager target.');
+  }
   const { SystemRoot, TEMP, TMP } = process.env;
   if (process.platform !== 'win32' || !SystemRoot) {
     throw new AppError(503, 'windows_credential', 'Windows Credential Manager is required.');
@@ -75,7 +78,7 @@ export async function readWorkspaceCredentialHash() {
   const command = Buffer.from(readCredential, 'utf16le').toString('base64');
   const { stdout } = await promisify(execFile)(powershell, ['-NoProfile', '-NonInteractive', '-EncodedCommand', command], {
     encoding: 'buffer', windowsHide: true, timeout: 10_000, maxBuffer: 4096,
-    env: { SystemRoot, TEMP, TMP, NODE_ENV: 'production' },
+    env: { SystemRoot, TEMP, TMP, NODE_ENV: 'production', KE_VAULT_TARGET: target },
   }).catch((error: NodeJS.ErrnoException) => {
     if (Number(error.code) === 2 || Number(error.code) === 3) {
       throw new AppError(401, 'windows_credential', 'Provision a valid KnowledgeEngine-MCP-STDIO Generic Credential in Windows Credential Manager.');
