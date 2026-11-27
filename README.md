@@ -22,7 +22,7 @@ Use Node.js 24 and configure server variables from [.env.example](.env.example) 
 npm ci
 npm run setup
 npm run crawl -- https://docs.nitrostack.ai/docs/getting-started/overview
-npm run dev
+npm run dev:web
 ```
 
 Open [the workspace](http://localhost:3000) and use **Connect workspace** with the key in the ignored `.env.tenant-nitrostack` file created by setup. Only key hashes are stored in Atlas. The web UI keeps the entered workspace key for its browser tab session.
@@ -52,7 +52,9 @@ Search accepts `query`, `collection`, `topK`, `mode`, `rerank`, `rerankModel`, `
 
 ## Run the MCP server locally
 
-Run `npm run mcp`. The server quietly loads `.env.local` for provider settings and reads the setup-generated NitroStack tenant key into `NITROSTACK_TENANT_API_KEY` when it is available. Existing process variables take precedence. Connect a Streamable HTTP MCP client to `http://127.0.0.1:3001/mcp`. Set `MCP_PORT` to use a different port. Send `Authorization: Bearer <workspace API key>` on every request, including initialization. The same workspace credentials and permissions apply to REST and MCP.
+Run `npm run dev` for the MCP server with automatic restart on TypeScript changes. Connect a Streamable HTTP MCP client to `http://127.0.0.1:3001/mcp`. Set `MCP_PORT` or run `npm run dev -- --port 3101` to choose another port. `npm run mcp` starts the same server without a watcher. Press Ctrl+C to shut it down.
+
+All MCP entry points load `.env.local` for provider settings and read the setup-generated NitroStack tenant key into `NITROSTACK_TENANT_API_KEY` when it is available. Existing process variables take precedence. Supply the workspace credential on every MCP request, including initialization. The same workspace credentials and permissions apply to REST and MCP.
 
 The server exposes `search_knowledge`, `answer_question`, `get_source`, `list_collections`, `ingest_document`, `delete_document`, and `get_usage`. `get_source` takes a `documentId` or `chunkId`. `get_usage` accepts `period` in days (7, 30, or 90). Admins can ingest a NitroStack docs `url` or an inline `file` with `name` and `base64` fields. NitroStack's HTTP JSON body limit applies to inline uploads. The REST upload route supports larger files up to 3 MB.
 
@@ -60,9 +62,11 @@ Run `npm run test:mcp:live` with the same local configuration and a free port. I
 
 ### NitroStudio production mode
 
-Open the repository in NitroStudio and select **Nitro HTTP (Production)**. Studio runs `npm run build` and then `npm run start:prod`. To reproduce the launch locally, run those same commands in that order. `npm run build:mcp` compiles just the MCP server when you only need to rebuild that service.
+Run `npm run build` to compile the MCP server and build the Next.js app. Then run `npm start` to launch the compiled MCP server. `npm run start:prod` launches that same build and is the command NitroStudio uses after `npm run build` in **Nitro HTTP (Production)** mode. `npm run build:mcp` compiles just the MCP server. Run `npm run start:web` to serve the built Next.js app.
 
-The production endpoint is `http://127.0.0.1:3000/mcp` by default. To use a different port, pass `npm run start:prod -- --port 3100` or set `MCP_SERVER_PORT`, `PORT`, or `MCP_PORT` in that order of precedence. If the Next.js app is already running on port 3000, select a free MCP port and use the same port in Studio. In NitroStudio's **Authentication** page, select the Task fourth project entry you are connecting and enter the existing workspace key in **Static API Key**. Streamable HTTP accepts `X-API-Key: <workspace API key>` and `Authorization: Bearer <workspace API key>` on every MCP request. If both headers are present, they must contain the same key. [NitroStudio authentication](https://docs.nitrostack.ai/docs/studio/authentication)
+The production endpoint is `http://127.0.0.1:3000/mcp` by default. To use a different port, pass `npm start -- --port 3100` or set `MCP_SERVER_PORT`, `PORT`, or `MCP_PORT` in that order of precedence. To run the Next.js app alongside production MCP on port 3000, use `npm run dev:web -- --port 3101` or `npm run start:web -- --port 3101` for the web app.
+
+Streamable HTTP accepts `X-API-Key: <workspace API key>` and `Authorization: Bearer <workspace API key>` on every MCP request. If both headers are present, they must contain the same key. NitroStudio's affected production launcher omits the saved Static API Key during initialization. That client requires an update before its saved key can authenticate on this launch path. [NitroStudio authentication](https://docs.nitrostack.ai/docs/studio/authentication)
 
 With the production MCP server running on its default port, run `npm run test:mcp:auth` to verify both header formats, rejected credentials, initialization, tool discovery, and a read-only `list_collections` call against Atlas.
 

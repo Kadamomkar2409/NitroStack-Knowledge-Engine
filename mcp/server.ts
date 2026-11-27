@@ -69,13 +69,15 @@ class KnowledgeHttpAuthentication {
   module: KnowledgeModule,
   server: { name: 'nitrostack-knowledge-engine', version: '0.1.0', protocolVersion: '2025-06-18' },
   transport: { type: 'http' },
+  shutdownHooks: false,
 })
 @Module({ name: 'knowledge', controllers: [KnowledgeTools], providers: [KnowledgeHttpAuthentication] })
 class KnowledgeModule {}
 
-export async function startKnowledgeServer(port = Number(process.env.MCP_PORT ?? 3001)) {
+export async function startKnowledgeServer(port = Number(process.env.MCP_PORT ?? 3001), { shutdownHooks = true } = {}) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('The MCP port must be an integer from 1 to 65535.');
   server = await McpApplicationFactory.create(KnowledgeModule);
+  if (shutdownHooks) server.enableShutdownHooks();
   await server.start({ transport: 'http', host: '127.0.0.1', port, enableCors: false });
   return server;
 }
