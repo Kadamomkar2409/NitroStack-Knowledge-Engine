@@ -16,7 +16,9 @@ async function verify() {
   const key = process.env.NITROSTACK_TENANT_API_KEY;
   assert.ok(key, 'NITROSTACK_TENANT_API_KEY is missing.');
   const invalidKey = randomBytes(32).toString('base64url');
-  const url = new URL('http://127.0.0.1:3000/mcp');
+  const port = Number(process.argv[2] ?? 3000);
+  assert.ok(Number.isInteger(port) && port > 0 && port <= 65535, 'Choose a valid local HTTP port.');
+  const url = new URL(`http://127.0.0.1:${port}/mcp`);
 
   async function expectUnauthorized(label: string, credentials: string[], sessionId?: string) {
     const body = sessionId ? JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' }) : initialize;

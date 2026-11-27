@@ -110,7 +110,7 @@ export async function search(identity: Identity, options: Options) {
     const reranked = await requestProvider<{
       data: { index: number; relevance_score: number }[]; usage?: { total_tokens?: number };
     }>('voyage', '/rerank', { query: options.query, documents: candidates.map(row => row.text),
-      model: options.rerankModel, top_k: options.topK });
+      model: options.rerankModel, top_k: Math.min(options.topK, candidates.length) });
     usageEntries.push(await recordUsage(identity, 'rerank', 'voyage', options.rerankModel, reranked.usage));
     ranked = reranked.data.flatMap(({ index, relevance_score }) => candidates[index] && Number.isFinite(relevance_score)
       ? [{ ...candidates[index], score: relevance_score, confidence: relevance_score }] : []);

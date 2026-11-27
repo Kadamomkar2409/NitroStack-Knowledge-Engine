@@ -91,6 +91,8 @@ npm run build
 npm run evaluate -- path/to/labeled-questions.json
 ```
 
+On Windows, build with `npm run build:mcp`, then run `node tests/mcp-retrieval.live.ts` with the patched runtime and the provisioned STDIO vault credential. The live Milestone 3 test uses the existing `nitrostack-docs` corpus and checks vector search, hybrid search, both Voyage rerankers, and a version with fewer candidates than requested. A successful run makes 14 paced Voyage calls across nine searches and records their normal usage in Atlas. It does not change the indexed corpus. Reported latency includes test pacing, with provider time shown separately.
+
 A labeled evaluation file is a JSON array. Each row has a `query` and an `expectedUrls` array of relevant pages already indexed for that workspace. The harness measures document-level Recall@10 and nDCG@10 over the top ten passages, p50/p95 retrieval latency, and cost per query. It saves measured runs to Atlas for the Evaluation page. Set `EVAL_CONFIG` to run one configuration and `EVAL_DELAY_MS` to change the delay between queries.
 
 Metered OpenRouter costs come from its usage response. Voyage cost estimates use its reported token usage and published list prices. Bills can differ due to included usage or geographic pricing. [Voyage pricing](https://docs.voyageai.com/docs/pricing)
