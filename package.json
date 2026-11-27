@@ -17,6 +17,7 @@
     "mcp": "tsx mcp/index.ts",
     "test:mcp:auth": "tsx tests/mcp-auth.live.ts",
     "test:mcp:live": "tsx tests/mcp.live.ts",
+    "test:answers:live": "tsx tests/answers.live.ts",
     "check": "tsc --noEmit",
     "setup": "node --env-file-if-exists=.env.local scripts/setup.ts",
     "crawl": "node --env-file-if-exists=.env.local scripts/crawl.ts",
