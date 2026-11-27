@@ -10,5 +10,5 @@
     "incremental": false,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["mcp/index.ts"]
+  "include": ["mcp/index.ts", "mcp/stdio.ts"]
 }

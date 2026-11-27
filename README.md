@@ -56,7 +56,7 @@ Search accepts `query`, `collection`, `topK`, `mode`, `rerank`, `rerankModel`, `
 
 Run `npm run dev` for the MCP server with automatic restart on TypeScript changes. Connect a Streamable HTTP MCP client to `http://127.0.0.1:3001/mcp`. Set `MCP_PORT` or run `npm run dev -- --port 3101` to choose another port. `npm run mcp` starts the same server without a watcher. Press Ctrl+C to shut it down.
 
-All MCP entry points load `.env.local` for provider settings and read the setup-generated NitroStack tenant key into `NITROSTACK_TENANT_API_KEY` when it is available. Existing process variables take precedence. Supply the workspace credential on every MCP request, including initialization. The same workspace credentials and permissions apply to REST and MCP.
+The HTTP entry points load `.env.local` for provider settings and read the setup-generated NitroStack tenant key into `NITROSTACK_TENANT_API_KEY` when it is available. Existing process variables take precedence. Supply the workspace credential on every HTTP MCP request, including initialization. The same workspace credentials and permissions apply to REST and MCP.
 
 The server exposes `search_knowledge`, `answer_question`, `get_source`, `list_collections`, `ingest_document`, `delete_document`, and `get_usage`. `get_source` takes a `documentId` or `chunkId`. `get_usage` accepts `period` in days (7, 30, or 90). Admins can ingest a NitroStack docs `url` or an inline `file` with `name` and `base64` fields. NitroStack's HTTP JSON body limit applies to inline uploads. The REST upload route supports larger files up to 3 MB.
 
@@ -71,6 +71,16 @@ The production endpoint is `http://127.0.0.1:3000/mcp` by default. To use a diff
 Streamable HTTP accepts `X-API-Key: <workspace API key>` and `Authorization: Bearer <workspace API key>` on every MCP request. If both headers are present, they must contain the same key. NitroStudio's affected production launcher omits the saved Static API Key during initialization. That client requires an update before its saved key can authenticate on this launch path. [NitroStudio authentication](https://docs.nitrostack.ai/docs/studio/authentication)
 
 With the production MCP server running on its default port, run `npm run test:mcp:auth` to verify both header formats, rejected credentials, initialization, tool discovery, and a read-only `list_collections` call against Atlas.
+
+### NitroStudio STDIO on Windows
+
+Provision a Generic Credential in **Windows Credential Manager → Windows Credentials** under the Windows account that runs NitroStudio. Use `KnowledgeEngine-MCP-STDIO` as the address, `Knowledge Engine` as the username, and the existing workspace API key as the password. Choose a key whose Atlas role grants only the workspace access intended for that Windows user session.
+
+Build with `npm run build:mcp` and open **Other Project → STDIO** in NitroStudio. Set **Command** to the absolute path to `node.exe` (Node.js 24.22.3 or newer within Node.js 24). Supply the absolute path to `dist\mcp\stdio.js` as one argument. Set the working directory to the project root if the dialog asks for it. Leave authentication and environment override fields empty.
+
+The launcher reads the Windows vault entry at startup and checks its SHA-256 hash against Atlas before opening STDIO and before dispatching each request. A missing or invalid key stops the process. Other processes with access to that Windows user's credential set can read a Generic Credential, so provision it only for an account whose processes you trust. Starting under NitroStudio supplies the MCP pipes. The workspace credential supplies authorization. Restart the STDIO connection after replacing or removing its vault entry.
+
+Run `node tests/mcp-stdio.live.ts` with the pinned runtime to check STDIO initialization, discovery of the seven tools, authorized Atlas `list_collections`, and shutdown when the client closes its input pipe. Before provisioning, append `--expect-missing` to verify rejection before initialization.
 
 ## Verify and evaluate
 

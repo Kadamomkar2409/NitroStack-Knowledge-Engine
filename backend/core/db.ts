@@ -39,7 +39,11 @@ export interface Identity {
 export async function authenticate(header: string | null): Promise<Identity> {
   const token = header?.match(/^Bearer ([A-Za-z0-9_-]{32,128})$/i)?.[1];
   if (!token) throw new AppError(401, 'unauthorized', 'Enter a valid workspace API key.');
-  const identity = await database().collection<Identity & { apiKeyHash: string }>('tenants').findOne({ apiKeyHash: digest(token) });
+  return authenticateKeyHash(digest(token));
+}
+
+export async function authenticateKeyHash(apiKeyHash: string, signal?: AbortSignal): Promise<Identity> {
+  const identity = await database().collection<Identity & { apiKeyHash: string }>('tenants').findOne({ apiKeyHash }, { signal });
   if (!identity || typeof identity.tenantId !== 'string' || !Array.isArray(identity.roles) || !identity.roles.every(role => typeof role === 'string')) {
     throw new AppError(401, 'unauthorized', 'Enter a valid workspace API key.');
   }
