@@ -49,11 +49,23 @@ export async function fetchCorpusPage(value: string) {
   }
   url.search = '';
   url.hash = '';
-  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(12000), cache: 'no-store' });
-  if (!response.ok || !response.headers.get('content-type')?.includes('text/html')) {
-    throw new AppError(422, 'source_unavailable', 'The docs page could not be loaded as HTML.');
+  // The public docs root redirects via /docs. Use its fixed, allowed page directly.
+  if (url.pathname === '/docs/') url.pathname = '/docs/getting-started/overview';
+  let html: string;
+  try {
+    const response = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(12000), cache: 'no-store' });
+    if (!response.ok || !response.headers.get('content-type')?.includes('text/html')) {
+      await response.body?.cancel();
+      if (response.status >= 300 && response.status < 400) {
+        throw new AppError(422, 'source_redirect', 'Use the final NitroStack docs page URL. Redirects are not followed.');
+      }
+      throw new AppError(422, 'source_unavailable', 'The docs page could not be loaded as HTML.');
+    }
+    html = await response.text();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(502, 'source_unavailable', 'The docs page could not be reached or read.');
   }
-  const html = await response.text();
   if (html.length > 2_000_000) throw new AppError(413, 'source_too_large', 'The page is too large.');
   const parsed = htmlToContent(html);
   return { source: { title: parsed.title || url.pathname, url: url.href }, pages: [{ text: parsed.text }], type: 'html' };
