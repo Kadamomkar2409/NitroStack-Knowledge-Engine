@@ -16,7 +16,9 @@ flowchart LR
 
 ## Run locally
 
-Use Node.js 24 and configure server variables from [.env.example](.env.example) in `.env.local`. The required variables are `MONGODB_URI`, `MONGODB_DB`, `VOYAGE_API_KEY`, `OPENROUTER_API_KEY`, and `LLM_MODEL`. The MongoDB database user must be able to manage search indexes for initial setup. `VOYAGE_API_BASE` defaults to the Atlas Model API. Set it to the legacy Voyage endpoint if you have a legacy Voyage key.
+Use a current Node.js 24 LTS release. `.node-version` pins the tested runtime for version managers that read it. On Windows, use Node.js 24.19.0 or later within the 24.x line for the c-ares fix that lets Atlas SRV lookups use the configured system DNS. After switching runtimes, check `node --version` in the terminal that starts the server. [Node.js Windows DNS fix](https://nodejs.org/en/blog/release/v24.19.0)
+
+Configure server variables from [.env.example](.env.example) in `.env.local`. The required variables are `MONGODB_URI`, `MONGODB_DB`, `VOYAGE_API_KEY`, `OPENROUTER_API_KEY`, and `LLM_MODEL`. The MongoDB database user must be able to manage search indexes for initial setup. `VOYAGE_API_BASE` defaults to the Atlas Model API. Set it to the legacy Voyage endpoint if you have a legacy Voyage key.
 
 ```sh
 npm ci
